@@ -1,14 +1,14 @@
-import logging
+"""
+Coletor NewsAPI
+---------------
+Usa a chave definida em `btc_perp_trader.config`.
+"""
+import logging, aiohttp
 
-import aiohttp
+from btc_perp_trader.config import NEWSAPI_KEY as API_KEY
 
-from btc_perp_trader.config import NEWSAPI_KEY
-
-API_KEY = NEWSAPI_KEY
-URL = (
-    "https://newsapi.org/v2/everything?"
+URL = "https://newsapi.org/v2/everything?" \
     "q=bitcoin&language=en&sortBy=publishedAt&pageSize=100&from={start}&to={end}&apiKey="
-)
 if API_KEY:
     URL += API_KEY
 if not API_KEY:
@@ -18,7 +18,7 @@ if not API_KEY:
     )
 
 
-async def fetch_news(start: str, end: str):
+async def fetch_news(start: str, end: str) -> list[str]:
     if not API_KEY:
         return []
     async with aiohttp.ClientSession() as sess:
