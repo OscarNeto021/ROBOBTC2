@@ -1,25 +1,28 @@
 from __future__ import annotations
-import asyncio, json, logging, os, sys
+
+import asyncio
+import json
+import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import click, pandas_ta as ta
-from dotenv import load_dotenv
+import click
 
+from btc_perp_trader.collectors.binance_user_ws import BinanceUserStream
 from btc_perp_trader.collectors.binance_ws import BinanceWebsocket
+from btc_perp_trader.config import BINANCE_API_KEY, BINANCE_API_SECRET
 from btc_perp_trader.execution.binance_adapter import BinanceAdapter
 from btc_perp_trader.models.online_model import ONLINE_MODEL
-from btc_perp_trader.tools.bandit_rr import sample_rr, update_rr
 from btc_perp_trader.risk.position_sizing import atr_position_size
-from btc_perp_trader.tools.state_manager import save_position, load_position
-from btc_perp_trader.tools.trade_logger import log_open, log_close, log_realized
-from btc_perp_trader.collectors.binance_user_ws import BinanceUserStream
 from btc_perp_trader.strategy import entry_signal
+from btc_perp_trader.tools.bandit_rr import sample_rr, update_rr
+from btc_perp_trader.tools.state_manager import load_position, save_position
+from btc_perp_trader.tools.trade_logger import log_close, log_open, log_realized
 
 logger = logging.getLogger(__name__)
 
-load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=True)
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = ROOT / ".." / "config"
 
@@ -52,16 +55,8 @@ def run(mode: str, date_from: Optional[datetime], date_to: Optional[datetime]) -
             raise click.BadParameter("--from/--to obrigatórios em backtest")
         return _run_backtest(date_from, date_to)
 
-    api_key = (
-        os.getenv("BINANCE_API_KEY_DEMO")
-        if mode == "demo"
-        else os.getenv("BINANCE_API_KEY")
-    )
-    api_sec = (
-        os.getenv("BINANCE_SECRET_KEY_DEMO")
-        if mode == "demo"
-        else os.getenv("BINANCE_SECRET_KEY")
-    )
+    api_key = BINANCE_API_KEY
+    api_sec = BINANCE_API_SECRET
     adapter = BinanceAdapter(api_key, api_sec, testnet=(mode == "demo"))
 
     # ---------- sincroniza posição aberta (se houver) ----------

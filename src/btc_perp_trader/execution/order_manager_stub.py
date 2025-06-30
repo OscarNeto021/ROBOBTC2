@@ -1,7 +1,10 @@
 """Simple order manager using ccxt testnet when USE_TESTNET is true."""
+
 import os
 
 import ccxt
+
+from btc_perp_trader.config import BINANCE_API_KEY, BINANCE_API_SECRET
 
 
 class OrderManagerStub:
@@ -13,8 +16,8 @@ class OrderManagerStub:
     def _create_client(self):
         if self.exchange_name == "binance":
             params = {
-                "apiKey": os.getenv("API_KEY"),
-                "secret": os.getenv("API_SECRET"),
+                "apiKey": BINANCE_API_KEY,
+                "secret": BINANCE_API_SECRET,
                 "enableRateLimit": True,
                 "options": {"defaultType": "future"},
             }
