@@ -10,25 +10,26 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
+import ccxt
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
 import yaml
-import ccxt
-import os
 
-load_dotenv()
+from btc_perp_trader.config import BINANCE_API_KEY, BINANCE_API_SECRET
+
 cfg = yaml.safe_load(open("config/config.yaml"))
-api_key = cfg["exchange"].get("api_key") or os.getenv("BINANCE_API_KEY")
-api_secret = cfg["exchange"].get("api_secret") or os.getenv("BINANCE_API_SECRET")
+api_key = cfg["exchange"].get("api_key") or BINANCE_API_KEY
+api_secret = cfg["exchange"].get("api_secret") or BINANCE_API_SECRET
 testnet = cfg["exchange"].get("testnet", False)
 
-exchange = ccxt.binance({
-    "apiKey": api_key,
-    "secret": api_secret,
-    "options": {"defaultType": "future"},
-    "enableRateLimit": True,
-})
+exchange = ccxt.binance(
+    {
+        "apiKey": api_key,
+        "secret": api_secret,
+        "options": {"defaultType": "future"},
+        "enableRateLimit": True,
+    }
+)
 exchange.set_sandbox_mode(testnet)
 
 logger = logging.getLogger(__name__)

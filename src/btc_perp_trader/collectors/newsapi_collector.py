@@ -1,11 +1,14 @@
 import logging
-import os
 
 import aiohttp
 
-API_KEY = os.getenv("NEWSAPI_KEY")
-URL = "https://newsapi.org/v2/everything?" \
+from btc_perp_trader.config import NEWSAPI_KEY
+
+API_KEY = NEWSAPI_KEY
+URL = (
+    "https://newsapi.org/v2/everything?"
     "q=bitcoin&language=en&sortBy=publishedAt&pageSize=100&from={start}&to={end}&apiKey="
+)
 if API_KEY:
     URL += API_KEY
 if not API_KEY:

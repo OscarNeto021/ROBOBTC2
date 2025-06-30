@@ -1,11 +1,17 @@
-import aiohttp, asyncio, logging, datetime
+import asyncio
+import datetime
+import logging
+
+import aiohttp
+
+from btc_perp_trader.config import CRYPTOPANIC_TOKEN, NEWSAPI_KEY
 
 NEWS_QUEUE = asyncio.Queue()
 logger = logging.getLogger("NewsCollector")
 
 NEWS_FEEDS = [
-    "https://newsapi.org/v2/top-headlines?category=business&q=bitcoin&apiKey=${NEWSAPI_KEY}",
-    "https://cryptopanic.com/api/v1/posts/?auth_token=${CRYPTOPANIC_TOKEN}&kind=news",
+    f"https://newsapi.org/v2/top-headlines?category=business&q=bitcoin&apiKey={NEWSAPI_KEY}",
+    f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_TOKEN}&kind=news",
 ]
 
 

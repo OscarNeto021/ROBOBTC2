@@ -1,6 +1,8 @@
-import requests, datetime, os
+import requests
 
-TOKEN = os.getenv("CRYPTOPANIC_TOKEN", "")
+from btc_perp_trader.config import CRYPTOPANIC_TOKEN
+
+TOKEN = CRYPTOPANIC_TOKEN
 URL = (
     "https://cryptopanic.com/api/v1/posts/?auth_token="
     + TOKEN
