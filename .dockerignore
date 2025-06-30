@@ -1,0 +1,74 @@
+# Arquivos e diretórios a serem ignorados pelo Docker
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs (manter estrutura mas não arquivos)
+logs/*.log
+logs/*.txt
+
+# Dados temporários
+data/temp/
+data/cache/
+
+# Modelos treinados grandes (opcional)
+# models/*.pkl
+# models/*.pth
+
+# Documentação de desenvolvimento
+docs/
+README.md
+
+# Testes
+tests/
+pytest.ini
+.coverage
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Outros
+.env
+*.bak
+*.tmp
+

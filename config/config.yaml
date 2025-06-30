@@ -1,0 +1,70 @@
+
+# Configurações gerais do BTC-PERP Absolute Trader
+
+# Configurações da Exchange
+exchange:
+  name: binance  # ou bybit, okx
+  type: future
+  testnet: true
+  api_key: ${BINANCE_API_KEY}
+  api_secret: ${BINANCE_API_SECRET}
+
+# Configurações de Dados
+data:
+  candle_interval: 5m
+  candle_limit: 5000
+  orderbook_depth: 50
+  onchain_data_source: null # Ex: glassnode, theblock (se houver API)
+  sentiment_data_source: null # Ex: twitter, reddit (se houver API)
+
+# Configurações de Modelagem
+model:
+  baseline_xgb:
+    enabled: true
+    params: # Parâmetros do XGBoost
+      objective: reg:squarederror
+      n_estimators: 100
+  agent_model_1:
+    enabled: true
+    type: tft # ou lstm_cnn
+    params: # Parâmetros do TFT/LSTM-CNN
+      hidden_size: 16
+      lstm_layers: 2
+  ensemble:
+    enabled: true
+    method: stacking # ou voting
+
+# Configurações de Backtest
+backtest:
+  start_date: "2023-01-01"
+  end_date: "2024-01-01"
+  metrics:
+    - sharpe
+    - sortino
+    - max_dd
+
+# Configurações de Execução
+execution:
+  mode: stub # ou live
+  maker_rebate_strategy:
+    enabled: true
+    timeout_seconds: 60 # Tempo limite para ordem limitada
+
+# Configurações de Risco
+risk:
+  kelly_adjusted:
+    enabled: true
+  global_stop_loss_percent: 0.10
+  adaptive_risk_management:
+    enabled: true
+    cvar_alpha: 0.95 # Nível de confiança para CVaR
+
+# Flags de Ativação de Inovações do Agente
+innovations:
+  market_regime_detection: true
+  onchain_sentiment_features: true
+  hybrid_model: true
+  maker_rebate_execution: true
+  adaptive_risk_management: true
+
+

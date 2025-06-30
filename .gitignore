@@ -1,0 +1,4 @@
+src/backtest/report.html
+src/btc_perp_trader/backtest/report.html
+**/__pycache__/
+.env

@@ -1,0 +1,25 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with: {poetry-version: "1.8.2"}
+      - name: Install deps
+        run: poetry install --no-interaction --no-root
+      - name: Lint & Type
+        run: |
+          poetry run ruff check .
+          poetry run mypy .
+      - name: Tests
+        run: poetry run pytest
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4

@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC-PERP Trading Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h3 {
+            margin-bottom: 15px;
+            color: #ffd700;
+            font-size: 1.3rem;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-running { background-color: #4CAF50; }
+        .status-stopped { background-color: #f44336; }
+        .status-not-initialized { background-color: #ff9800; }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #f44336, #da190b);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #ff9800, #e68900);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .order-form {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1rem;
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+            color: #ffd700;
+        }
+
+        .positive {
+            color: #4CAF50;
+        }
+
+        .negative {
+            color: #f44336;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            opacity: 0.7;
+        }
+
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                justify-content: center;
+            }
+            
+            .btn {
+                flex: 1;
+                min-width: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 BTC-PERP Trading Bot</h1>
+            <p>Sistema de Trading Algorítmico com Machine Learning</p>
+        </div>
+
+        <div id="messages"></div>
+
+        <div class="controls">
+            <button class="btn btn-warning" onclick="initializeSystem()">Inicializar Sistema</button>
+            <button class="btn btn-primary" onclick="startTrading()" id="startBtn">Iniciar Trading</button>
+            <button class="btn btn-danger" onclick="stopTrading()" id="stopBtn">Parar Trading</button>
+            <button class="btn btn-primary" onclick="refreshData()">Atualizar Dados</button>
+        </div>
+
+        <div class="dashboard">
+            <div class="card">
+                <h3>📊 Status do Sistema</h3>
+                <div class="metric">
+                    <span class="metric-label">Status:</span>
+                    <span class="metric-value" id="systemStatus">
+                        <span class="status-indicator status-not-initialized"></span>
+                        Não Inicializado
+                    </span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Saldo:</span>
+                    <span class="metric-value" id="balance">$0.00</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Equity Total:</span>
+                    <span class="metric-value" id="totalEquity">$0.00</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Última Atualização:</span>
+                    <span class="metric-value" id="lastUpdate">-</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📈 Performance</h3>
+                <div class="metric">
+                    <span class="metric-label">Total de Trades:</span>
+                    <span class="metric-value" id="totalTrades">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Ordens Abertas:</span>
+                    <span class="metric-value" id="openOrders">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Posições:</span>
+                    <span class="metric-value" id="positions">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Win Rate:</span>
+                    <span class="metric-value" id="winRate">0%</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>⚡ Ações Rápidas</h3>
+                <div class="form-group">
+                    <label>Atualizar Preço BTC-USDT:</label>
+                    <input type="number" id="priceInput" placeholder="50000" step="0.01">
+                </div>
+                <button class="btn btn-primary" onclick="updatePrice()" style="width: 100%;">
+                    Atualizar Preço
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📋 Colocar Ordem Manual</h3>
+            <div class="order-form">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div class="form-group">
+                        <label>Símbolo:</label>
+                        <input type="text" id="orderSymbol" value="BTC-USDT" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Lado:</label>
+                        <select id="orderSide">
+                            <option value="buy">Comprar</option>
+                            <option value="sell">Vender</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo:</label>
+                        <select id="orderType">
+                            <option value="market">Market</option>
+                            <option value="limit">Limit</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Quantidade:</label>
+                        <input type="number" id="orderQuantity" placeholder="0.001" step="0.001">
+                    </div>
+                    <div class="form-group">
+                        <label>Preço (Limit):</label>
+                        <input type="number" id="orderPrice" placeholder="50000" step="0.01">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="placeOrder()" style="margin-top: 15px;">
+                    Colocar Ordem
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 Posições Atuais</h3>
+            <div class="table-container">
+                <table id="positionsTable">
+                    <thead>
+                        <tr>
+                            <th>Símbolo</th>
+                            <th>Lado</th>
+                            <th>Quantidade</th>
+                            <th>Preço Médio</th>
+                            <th>PnL Não Realizado</th>
+                            <th>PnL Realizado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positionsBody">
+                        <tr>
+                            <td colspan="6" class="loading">Nenhuma posição aberta</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📋 Ordens Abertas</h3>
+            <div class="table-container">
+                <table id="ordersTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Símbolo</th>
+                            <th>Lado</th>
+                            <th>Tipo</th>
+                            <th>Quantidade</th>
+                            <th>Preço</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersBody">
+                        <tr>
+                            <td colspan="8" class="loading">Nenhuma ordem aberta</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/trading';
+        
+        let systemData = {
+            status: 'not_initialized',
+            balance: 0,
+            totalEquity: 0,
+            openOrders: 0,
+            totalTrades: 0,
+            positions: 0
+        };
+
+        // Função para mostrar mensagens
+        function showMessage(message, type = 'success') {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            messagesDiv.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+
+        // Função para fazer requisições à API
+        async function apiRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(API_BASE + endpoint, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro na requisição');
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('API Error:', error);
+                showMessage(error.message, 'error');
+                throw error;
+            }
+        }
+
+        // Inicializar sistema
+        async function initializeSystem() {
+            try {
+                const result = await apiRequest('/initialize', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        initial_balance: 100000,
+                        commission_rate: 0.001
+                    })
+                });
+                
+                showMessage(result.message);
+                await refreshData();
+            } catch (error) {
+                // Erro já tratado na função apiRequest
+            }
+        }
+
+        // Iniciar trading
+        async function startTrading() {
+            try {
+                const result = await apiRequest('/start', { method: 'POST' });
+                showMessage(result.message);
+                await refreshData();
+            } catch (error) {
+                // Erro já tratado na função apiRequest
+            }
+        }
+
+        // Parar trading
+        async function stopTrading() {
+            try {
+                const result = await apiRequest('/stop', { method: 'POST' });
+                showMessage(result.message);
+                await refreshData();
+            } catch (error) {
+                // Erro já tratado na função apiRequest
+            }
+        }
+
+        // Atualizar preço
+        async function updatePrice() {
+            const price = document.getElementById('priceInput').value;
+            if (!price) {
+                showMessage('Por favor, insira um preço', 'error');
+                return;
+            }
+
+            try {
+                const result = await apiRequest('/market_data', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        symbol: 'BTC-USDT',
+                        price: parseFloat(price)
+                    })
+                });
+                
+                showMessage(result.message);
+                await refreshData();
+            } catch (error) {
+                // Erro já tratado na função apiRequest
+            }
+        }
+
+        // Colocar ordem
+        async function placeOrder() {
+            const symbol = document.getElementById('orderSymbol').value;
+            const side = document.getElementById('orderSide').value;
+            const type = document.getElementById('orderType').value;
+            const quantity = document.getElementById('orderQuantity').value;
+            const price = document.getElementById('orderPrice').value;
+
+            if (!quantity) {
+                showMessage('Por favor, insira a quantidade', 'error');
+                return;
+            }
+
+            const orderData = {
+                symbol,
+                side,
+                type,
+                quantity: parseFloat(quantity)
+            };
+
+            if (type === 'limit' && price) {
+                orderData.price = parseFloat(price);
+            }
+
+            try {
+                const result = await apiRequest('/place_order', {
+                    method: 'POST',
+                    body: JSON.stringify(orderData)
+                });
+                
+                showMessage(result.message);
+                
+                // Limpar formulário
+                document.getElementById('orderQuantity').value = '';
+                document.getElementById('orderPrice').value = '';
+                
+                await refreshData();
+            } catch (error) {
+                // Erro já tratado na função apiRequest
+            }
+        }
+
+        // Cancelar ordem
+        async function cancelOrder(orderId) {
+            try {
+                const result = await apiRequest(`/cancel_order/${orderId}`, {
+                    method: 'DELETE'
+                });
+                
+                showMessage(result.message);
+                await refreshData();
+            } catch (error) {
+                // Erro já tratado na função apiRequest
+            }
+        }
+
+        // Atualizar dados do dashboard
+        async function refreshData() {
+            try {
+                // Buscar status
+                const status = await apiRequest('/status');
+                updateStatusDisplay(status);
+
+                // Buscar performance
+                const performance = await apiRequest('/performance');
+                updatePerformanceDisplay(performance);
+
+                // Buscar posições
+                const positions = await apiRequest('/positions');
+                updatePositionsTable(positions.positions || []);
+
+                // Buscar ordens
+                const orders = await apiRequest('/orders');
+                updateOrdersTable(orders.open_orders || []);
+
+            } catch (error) {
+                console.error('Erro ao atualizar dados:', error);
+            }
+        }
+
+        // Atualizar display de status
+        function updateStatusDisplay(data) {
+            systemData = { ...systemData, ...data };
+            
+            const statusElement = document.getElementById('systemStatus');
+            const statusClass = `status-${data.status.replace('_', '-')}`;
+            const statusText = {
+                'running': 'Rodando',
+                'stopped': 'Parado',
+                'not_initialized': 'Não Inicializado'
+            }[data.status] || data.status;
+            
+            statusElement.innerHTML = `<span class="status-indicator ${statusClass}"></span>${statusText}`;
+            
+            document.getElementById('balance').textContent = `$${data.balance?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0.00'}`;
+            document.getElementById('totalEquity').textContent = `$${data.total_equity?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0.00'}`;
+            document.getElementById('totalTrades').textContent = data.total_trades || 0;
+            document.getElementById('openOrders').textContent = data.open_orders || 0;
+            document.getElementById('positions').textContent = data.positions || 0;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('pt-BR');
+        }
+
+        // Atualizar display de performance
+        function updatePerformanceDisplay(data) {
+            if (data.win_rate !== undefined) {
+                document.getElementById('winRate').textContent = `${(data.win_rate * 100).toFixed(1)}%`;
+            }
+        }
+
+        // Atualizar tabela de posições
+        function updatePositionsTable(positions) {
+            const tbody = document.getElementById('positionsBody');
+            
+            if (positions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="loading">Nenhuma posição aberta</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = positions.map(pos => `
+                <tr>
+                    <td>${pos.symbol}</td>
+                    <td>${pos.side}</td>
+                    <td>${pos.quantity.toFixed(6)}</td>
+                    <td>$${pos.average_price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td class="${pos.unrealized_pnl >= 0 ? 'positive' : 'negative'}">
+                        $${pos.unrealized_pnl.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                    </td>
+                    <td class="${pos.realized_pnl >= 0 ? 'positive' : 'negative'}">
+                        $${pos.realized_pnl.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Atualizar tabela de ordens
+        function updateOrdersTable(orders) {
+            const tbody = document.getElementById('ordersBody');
+            
+            if (orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="loading">Nenhuma ordem aberta</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = orders.map(order => `
+                <tr>
+                    <td>${order.id.substring(0, 8)}...</td>
+                    <td>${order.symbol}</td>
+                    <td>${order.side}</td>
+                    <td>${order.type}</td>
+                    <td>${order.quantity}</td>
+                    <td>${order.price ? '$' + order.price.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
+                    <td>${order.status}</td>
+                    <td>
+                        <button class="btn btn-danger" onclick="cancelOrder('${order.id}')" style="padding: 5px 10px; font-size: 0.8rem;">
+                            Cancelar
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Atualizar dados automaticamente a cada 5 segundos
+        setInterval(refreshData, 5000);
+
+        // Carregar dados iniciais
+        refreshData();
+    </script>
+</body>
+</html>
+
