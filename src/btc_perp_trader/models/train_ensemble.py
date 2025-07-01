@@ -37,7 +37,9 @@ def _engineering(df: pd.DataFrame) -> pd.DataFrame:
     df["rsi14"] = ta.rsi(df["close"], length=14)
     df["atr14"] = ta.atr(df["high"], df["low"], df["close"], length=14)
 
-    bb = ta.bbands(df["close"])
+    # Bollinger Bands com janela de 20 períodos para manter
+    # consistência com dataset de treino produzido em build_dataset.py
+    bb = ta.bbands(df["close"], length=20)
     if bb is not None:
         df["bb_lower"] = bb["BBL_20_2.0"]
         df["bb_middle"] = bb["BBM_20_2.0"]
