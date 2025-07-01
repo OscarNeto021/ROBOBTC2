@@ -103,7 +103,8 @@ def run(mode: str, date_from: Optional[datetime], date_to: Optional[datetime]) -
         try:
             async for candle in feed.stream():
                 feats = candle.to_features()
-                feats.setdefault("headline", "")  # evita KeyError no modelo textual
+                if "headline" not in feats:
+                    feats["headline"] = ""  # evita KeyError no modelo textual
                 long_p = ONLINE_MODEL.predict(feats)
                 short_p = 1 - long_p
                 price = candle.close
