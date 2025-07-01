@@ -1,22 +1,46 @@
-import numpy as np
 import pandas as pd
 import vectorbt as vbt
 
+from btc_perp_trader.models.train_ensemble import load_dataset
+from btc_perp_trader.models.ensemble_model import EnsembleModel
 
-def run_backtest():
-    """Run a simple vectorbt backtest returning a Portfolio."""
-    # Gerar dados de preço mais realistas
-    np.random.seed(42)
-    price = pd.Series(100 + np.cumsum(np.random.randn(1000)), name="BTC")
 
-    # Gerar sinais de entrada e saída mais complexos
-    fast_ma = price.ewm(span=10).mean()
-    slow_ma = price.ewm(span=50).mean()
+def run_backtest() -> vbt.Portfolio:
+    """Run a backtest using ML predictions as trading signals."""
 
-    entries = (fast_ma > slow_ma) & (fast_ma.shift(1) <= slow_ma.shift(1))
-    exits = (fast_ma < slow_ma) & (fast_ma.shift(1) >= slow_ma.shift(1))
+    df = load_dataset()
+    model = EnsembleModel.load_or_train()
 
-    pf = vbt.Portfolio.from_signals(price, entries, exits, init_cash=100_000)
+    probs = df.apply(
+        lambda row: model.predict_proba(
+            row.drop(labels=["label"], errors="ignore")
+        ),
+        axis=1,
+    )
+    df[["p_long", "p_short"]] = pd.DataFrame(list(probs), index=df.index)
+
+    price = df["close"]
+
+    mean_long = df["p_long"].mean()
+    std_long = df["p_long"].std()
+    mean_short = df["p_short"].mean()
+    std_short = df["p_short"].std()
+
+    long_entries = df["p_long"] > mean_long + std_long
+    long_exits = df["p_long"] < mean_long - std_long
+    short_entries = df["p_short"] > mean_short + std_short
+    short_exits = df["p_short"] < mean_short - std_short
+
+    pf = vbt.Portfolio.from_signals(
+        price,
+        entries=long_entries,
+        exits=long_exits,
+        short_entries=short_entries,
+        short_exits=short_exits,
+        sl_stop=0.01,
+        tp_stop=0.02,
+        init_cash=100_000,
+    )
     return pf
 
 
