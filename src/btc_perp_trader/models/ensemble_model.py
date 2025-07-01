@@ -116,18 +116,38 @@ class EnsembleModel:
             return 1 - np.mean(scores)
 
         study = optuna.create_study(direction="minimize")
-        study.optimize(objective, n_trials=30, show_progress_bar=False)
+        study.optimize(objective, n_trials=100, show_progress_bar=False)
         xgb_best = XGBClassifier(objective="binary:logistic", **study.best_params)
         xgb_best.fit(X, y)
 
         # ---- 2. TFT-LSTM (PyTorch CPU/GPU) ----------------------------------
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        tft = _TFT(in_dim=len(feats)).to(device)
-        loss_fn = nn.BCELoss()
-        opt = optim.Adam(tft.parameters(), lr=1e-3)
         X_t = torch.from_numpy(X).unsqueeze(1).to(device)      # (N,1,F)
         y_t = torch.from_numpy(y).float().unsqueeze(1).to(device)
-        for epoch in range(10):                                # epochs rápidos
+
+        def tft_objective(trial):
+            hidden = trial.suggest_int("hidden", 16, 64)
+            layers = trial.suggest_int("layers", 1, 3)
+            lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
+            model = _TFT(in_dim=len(feats), hidden=hidden, lstm_layers=layers).to(device)
+            opt = optim.Adam(model.parameters(), lr=lr)
+            loss_fn = nn.BCELoss()
+            for _ in range(5):
+                pred = model(X_t)
+                loss = loss_fn(pred, y_t)
+                opt.zero_grad(); loss.backward(); opt.step()
+            with torch.no_grad():
+                loss_val = loss_fn(model(X_t), y_t).item()
+            return loss_val
+
+        import optuna
+        study_tft = optuna.create_study(direction="minimize")
+        study_tft.optimize(tft_objective, n_trials=10, show_progress_bar=False)
+        best = study_tft.best_params
+        tft = _TFT(in_dim=len(feats), hidden=best["hidden"], lstm_layers=best["layers"]).to(device)
+        opt = optim.Adam(tft.parameters(), lr=best["lr"])
+        loss_fn = nn.BCELoss()
+        for epoch in range(10):
             pred = tft(X_t)
             loss = loss_fn(pred, y_t)
             opt.zero_grad(); loss.backward(); opt.step()
