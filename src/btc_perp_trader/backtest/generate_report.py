@@ -7,17 +7,15 @@ def main():
     # Executa back-test
     pf = run_backtest()
 
-    # Define frequência de 5 minutos (evita warnings de métricas)
-    # vectorbt <0.26 não possui set_freq; ajuste diretamente
-    pf.wrapper._freq = pd.Timedelta("5min")
+
 
     # pf.stats() → Series. Converta em DataFrame p/ HTML (Pandas ≥2)
     stats = pf.stats()
     
     # Métricas adicionais
-    total_trades = stats.get("Total Trades", 0)
-    winning_trades = stats.get("Win Trades", 0)
-    losing_trades = stats.get("Loss Trades", 0)
+    total_trades = int(pf.trades.count())
+    winning_trades = int(pf.trades.winning.count())
+    losing_trades = int(pf.trades.losing.count())
     accuracy = stats.get("Win Rate [%]", 0)
     
     # Rendimento em % do valor investido
