@@ -1,15 +1,36 @@
 from pathlib import Path
-from btc_perp_trader.backtest.vectorbt_backtest import run_backtest
+
 import pandas as pd
+import vectorbt as vbt
+
+ROOT = Path(__file__).resolve().parents[2]
+CSV = ROOT / "data" / "btc_1m_2025-06-30.csv"
 
 
 def main():
-    # Executa back-test
-    pf = run_backtest()
+    # Leitura do CSV completo e index temporal
+    df = pd.read_csv(CSV, index_col="ts", parse_dates=True)
+    price = df["close"]
 
-    # Define frequência de 5 minutos (evita warnings de métricas)
+    # Geração de sinais simples de média móvel
+    fast_ma = price.ewm(span=10).mean()
+    slow_ma = price.ewm(span=50).mean()
+
+    entries = (fast_ma > slow_ma) & (fast_ma.shift(1) <= slow_ma.shift(1))
+    exits = (fast_ma < slow_ma) & (fast_ma.shift(1) >= slow_ma.shift(1))
+
+    # Crie o portfólio informando que cada passo é 1 minuto
+    pf = vbt.Portfolio.from_signals(
+        price,
+        entries,
+        exits,
+        init_cash=100_000,
+        freq="1T",
+    )
+
+    # Define frequência de 1 minuto (evita warnings de métricas)
     # vectorbt <0.26 não possui set_freq; ajuste diretamente
-    pf.wrapper._freq = pd.Timedelta("5min")
+    pf.wrapper._freq = pd.Timedelta("1min")
 
     # pf.stats() → Series. Converta em DataFrame p/ HTML (Pandas ≥2)
     stats = pf.stats()
