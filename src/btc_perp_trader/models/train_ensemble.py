@@ -1,102 +1,94 @@
-import requests, pandas as pd, numpy as np, datetime as dt, pathlib, json, gzip
-from pandas import Timestamp
+"""Treino / utilitários para o EnsembleModel.
+
+• Procura sempre o dataset mais recente (`data/latest_feats.pkl` ou
+  o .pkl mais novo) e oferece uma CLI:
+
+    poetry run python -m btc_perp_trader.models.train_ensemble
+    poetry run python -m btc_perp_trader.models.train_ensemble --dataset data/btc_feats_until_2025-07-01.pkl --out models/meu_modelo.pkl
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import pathlib
+import pickle
+from typing import Optional
+
+import pandas as pd
+
+from btc_perp_trader.models.ensemble_model import EnsembleModel
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-CACHE = ROOT / "data" / "binance_train.parquet"
-LOCAL_CSV = ROOT / "src" / "data" / "btc_1m_2025-06-30.csv"
-CACHE.parent.mkdir(exist_ok=True)
+DATA_DIR = ROOT / "data"
 
-def _fetch_candles(symbol="BTCUSDT", interval="1m", limit=None) -> pd.DataFrame:
-    url = f"https://data.binance.vision/data/futures/um/daily/klines/{symbol}/{interval}/{symbol}-{interval}-{dt.date.today()}.zip"
-    try:
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
-        df = pd.read_csv(gzip.decompress(r.content))
-    except Exception:
-        # fallback via REST (limit 1500)
-        params = dict(symbol=symbol, interval=interval)
-        if limit:
-            params["limit"] = limit
-        resp = requests.get(
-            "https://fapi.binance.com/fapi/v1/klines",
-            params=params,
-            timeout=10,
-        ).json()
-        df = pd.DataFrame(resp, columns=[
-            "open_time","open","high","low","close","volume",
-            "close_time","qav","trades","taker_buy_base",
-            "taker_buy_quote","ignore"
-        ])
-    df = df.astype(float)
-    df["timestamp"] = pd.to_datetime(df["open_time"], unit="ms")
-    return df
+_logger = logging.getLogger(__name__)
 
-def _engineering(df: pd.DataFrame) -> pd.DataFrame:
-    import pandas_ta as ta
 
-    df["rsi14"] = ta.rsi(df["close"], length=14)
-    df["atr14"] = ta.atr(df["high"], df["low"], df["close"], length=14)
+# --------------------------------------------------------------------------- #
+# helpers
+# --------------------------------------------------------------------------- #
+def _latest_feats_path() -> Optional[pathlib.Path]:
+    latest = DATA_DIR / "latest_feats.pkl"
+    if latest.exists():
+        return latest
+    pkls = sorted(
+        DATA_DIR.glob("btc_feats_*.pkl"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return pkls[0] if pkls else None
 
-    # Bollinger Bands com janela de 20 períodos para manter
-    # consistência com dataset de treino produzido em build_dataset.py
-    bb = ta.bbands(df["close"], length=20)
-    if bb is not None:
-        df["bb_lower"] = bb["BBL_20_2.0"]
-        df["bb_middle"] = bb["BBM_20_2.0"]
-        df["bb_upper"] = bb["BBU_20_2.0"]
 
-    macd = ta.macd(df["close"])
-    if macd is not None:
-        df["macd"] = macd["MACD_12_26_9"]
-        df["macd_signal"] = macd["MACDs_12_26_9"]
+def load_dataset(path: pathlib.Path | None = None) -> pd.DataFrame:
+    """Carrega o DataFrame de features para treinar/avaliar modelos."""
+    if path:
+        return pickle.load(path.open("rb"))
+    p = _latest_feats_path()
+    if not p:
+        raise FileNotFoundError(
+            "Nenhum dataset encontrado em 'data/'. Execute offline_train.py primeiro."
+        )
+    _logger.info("Carregando dataset %s", p.name)
+    return pickle.load(p.open("rb"))
 
-    df["obv"] = ta.obv(df["close"], df["volume"])
-    df["volatility"] = df["close"].rolling(window=20).std()
-    df["volume_ma20"] = df["volume"].rolling(window=20).mean()
 
-    if "timestamp" in df.columns:
-        df["dow"] = df["timestamp"].dt.dayofweek
-        df["hour"] = df["timestamp"].dt.hour
-        df["month"] = df["timestamp"].dt.month
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+def _parse_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--dataset",
+        type=pathlib.Path,
+        default=None,
+        help="Caminho opcional para .pkl de features",
+    )
+    ap.add_argument(
+        "--out",
+        type=pathlib.Path,
+        default=ROOT / "models/default.pkl",
+        help="Arquivo onde o modelo será salvo",
+    )
+    return ap.parse_args()
 
-    df["label"] = (df["close"].shift(-3) > df["close"]).astype(int)
-    df = df.dropna().reset_index(drop=True)
 
-    keep = [
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        "rsi14",
-        "atr14",
-        "bb_lower",
-        "bb_middle",
-        "bb_upper",
-        "macd",
-        "macd_signal",
-        "obv",
-        "volatility",
-        "volume_ma20",
-        "dow",
-        "hour",
-        "month",
-        "label",
-    ]
-    return df[keep]
+def main() -> None:
+    args = _parse_args()
+    df = load_dataset(args.dataset)
 
-def load_dataset() -> pd.DataFrame:
-    if CACHE.exists():
-        return pd.read_parquet(CACHE)
+    _logger.info("Treinando EnsembleModel com %d amostras", len(df))
+    # Usa API interna do EnsembleModel — se existir _train_full_from_df, preferimos
+    mdl = (
+        EnsembleModel._train_full_from_df(df)  # type: ignore[attr-defined]
+        if hasattr(EnsembleModel, "_train_full_from_df")
+        else EnsembleModel._train_full(name="default")
+    )
 
-    if LOCAL_CSV.exists():
-        df = pd.read_csv(LOCAL_CSV)
-        if "ts" in df.columns:
-            df.rename(columns={"ts": "timestamp"}, inplace=True)
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-    else:
-        df = _fetch_candles()
+    with args.out.open("wb") as fh:
+        pickle.dump(mdl, fh)
+    print(f"✅ Modelo salvo em {args.out}")  # noqa: WPS421
 
-    df = _engineering(df)
-    df.to_parquet(CACHE)
-    return df
+
+if __name__ == "__main__":  # pragma: no cover
+    main()
