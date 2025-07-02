@@ -10,7 +10,7 @@ import argparse
 import logging
 import pathlib
 import pickle
-from typing import Optional
+from typing import Optional, List
 
 import pandas as pd
 
@@ -40,23 +40,59 @@ def _latest_feats_path() -> Optional[pathlib.Path]:
 
 
 def _coerce_datetimes(df: pd.DataFrame) -> pd.DataFrame:
-    """Converte TODAS as colunas de data (datetime64 ou Timestamp em object) para Unix-time."""
+    """Sanitiza o DataFrame para conter **apenas valores numéricos** (float32).
+
+    Regras:
+      • ÍNDICE datetime   -> reset/drop
+      • Colunas ['date', 'datetime', 'timestamp', ...] -> drop
+      • Demais datetime  -> int64 (segundos Unix)
+      • Colunas object   -> tenta converter via `pd.to_numeric`
+    """
     import pandas as pd
     import numpy as np
+    from pandas.api.types import is_datetime64_any_dtype
 
     df = df.copy()
 
-    # 1) datetime64[ns] diretas ------------------------------------------------
-    for col in df.select_dtypes(include="datetime"):
-        df[col] = df[col].view("int64") // 1_000_000_000  # ns → s
+    # 0) Remover DatetimeIndex -------------------------------------------------
+    if isinstance(df.index, pd.DatetimeIndex):
+        df = df.reset_index(drop=True)
 
-    # 2) colunas object contendo Timestamp ------------------------------------
-    for col in df.select_dtypes(include="object"):
-        first = df[col].iloc[0]
-        if isinstance(first, (pd.Timestamp, np.datetime64)):
-            df[col] = pd.to_datetime(df[col]).view("int64") // 1_000_000_000
+    # 1) Regras de drop/conversão ---------------------------------------------
+    DROP_KEYWORDS: List[str] = ["date", "datetime", "timestamp"]
 
-    return df
+    for col in list(df.columns):
+        # a) DROP se nome indica coluna de data pura --------------------------
+        if any(key in col.lower() for key in DROP_KEYWORDS):
+            df = df.drop(columns=[col])
+            continue
+
+        # b) datetime64 direto -------------------------------------------------
+        if is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].view("int64") // 1_000_000_000
+            continue
+
+        # c) object possivelmente datetime ------------------------------------
+        if df[col].dtype == "object":
+            try:
+                dt_series = pd.to_datetime(df[col], errors="raise")
+                if is_datetime64_any_dtype(dt_series):
+                    df[col] = dt_series.view("int64") // 1_000_000_000
+                    continue
+            except Exception:
+                pass  # não é datetime, tenta numérico abaixo
+
+            # d) tenta converter para numérico (strings de número) ------------
+            df[col] = pd.to_numeric(df[col], errors="ignore")
+
+    # 2) Garante float32 -------------------------------------------------------
+    df = df.apply(pd.to_numeric, errors="ignore")
+    non_numeric = df.select_dtypes(exclude=["number"]).columns
+    if len(non_numeric):  # se ainda restar algo não numérico -> drop
+        df = df.drop(columns=list(non_numeric))
+
+    # 3) Cast final para float32 ----------------------------------------------
+    return df.astype(np.float32)
 
 
 def load_dataset(path: pathlib.Path | None = None) -> pd.DataFrame:
