@@ -85,7 +85,11 @@ def _coerce_datetimes(df: pd.DataFrame) -> pd.DataFrame:
             # d) tenta converter para numérico (strings de número) ------------
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # 2) Garante float32 -------------------------------------------------------
+    # 2) (Re)cria coluna label se não existir ---------------------------------
+    if "label" not in df.columns and {"close"}.issubset(df.columns):
+        df["label"] = (df["close"].shift(-1) > df["close"]).astype("int32")
+
+    # 3) Cast final para float32 ----------------------------------------------
     df = df.apply(pd.to_numeric, errors="ignore")
     non_numeric = df.select_dtypes(exclude=["number"]).columns
     # Nunca descartamos a coluna 'label'
@@ -93,15 +97,10 @@ def _coerce_datetimes(df: pd.DataFrame) -> pd.DataFrame:
     if drop_cols:
         df = df.drop(columns=drop_cols)
 
-    # 3) Cast final ------------------------------------------------------------
     feat_cols = [c for c in df.columns if c != "label"]
     df[feat_cols] = df[feat_cols].astype(np.float32)
     if "label" in df.columns and df["label"].dtype != "int32":
-        df["label"] = (
-            pd.to_numeric(df["label"], errors="coerce")
-            .fillna(0)
-            .astype("int32")
-        )
+        df["label"] = df["label"].astype("int32")
 
     return df
 
