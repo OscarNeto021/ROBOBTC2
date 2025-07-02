@@ -10,7 +10,7 @@ import argparse
 import logging
 import pathlib
 import pickle
-from typing import Optional, List
+from typing import List, Optional
 
 import pandas as pd
 
@@ -48,8 +48,8 @@ def _coerce_datetimes(df: pd.DataFrame) -> pd.DataFrame:
       • Demais datetime  -> int64 (segundos Unix)
       • Colunas object   -> tenta converter via `pd.to_numeric`
     """
-    import pandas as pd
     import numpy as np
+    import pandas as pd
     from pandas.api.types import is_datetime64_any_dtype
 
     df = df.copy()
@@ -69,7 +69,7 @@ def _coerce_datetimes(df: pd.DataFrame) -> pd.DataFrame:
 
         # b) datetime64 direto -------------------------------------------------
         if is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].view("int64") // 1_000_000_000
+            df[col] = df[col].astype("int64") // 1_000_000_000
             continue
 
         # c) object possivelmente datetime ------------------------------------
@@ -77,22 +77,33 @@ def _coerce_datetimes(df: pd.DataFrame) -> pd.DataFrame:
             try:
                 dt_series = pd.to_datetime(df[col], errors="raise")
                 if is_datetime64_any_dtype(dt_series):
-                    df[col] = dt_series.view("int64") // 1_000_000_000
+                    df[col] = dt_series.astype("int64") // 1_000_000_000
                     continue
             except Exception:
                 pass  # não é datetime, tenta numérico abaixo
 
             # d) tenta converter para numérico (strings de número) ------------
-            df[col] = pd.to_numeric(df[col], errors="ignore")
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # 2) Garante float32 -------------------------------------------------------
     df = df.apply(pd.to_numeric, errors="ignore")
     non_numeric = df.select_dtypes(exclude=["number"]).columns
-    if len(non_numeric):  # se ainda restar algo não numérico -> drop
-        df = df.drop(columns=list(non_numeric))
+    # Nunca descartamos a coluna 'label'
+    drop_cols = [c for c in non_numeric if c != "label"]
+    if drop_cols:
+        df = df.drop(columns=drop_cols)
 
-    # 3) Cast final para float32 ----------------------------------------------
-    return df.astype(np.float32)
+    # 3) Cast final ------------------------------------------------------------
+    feat_cols = [c for c in df.columns if c != "label"]
+    df[feat_cols] = df[feat_cols].astype(np.float32)
+    if "label" in df.columns and df["label"].dtype != "int32":
+        df["label"] = (
+            pd.to_numeric(df["label"], errors="coerce")
+            .fillna(0)
+            .astype("int32")
+        )
+
+    return df
 
 
 def load_dataset(path: pathlib.Path | None = None) -> pd.DataFrame:
