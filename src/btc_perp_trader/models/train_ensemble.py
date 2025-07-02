@@ -40,12 +40,22 @@ def _latest_feats_path() -> Optional[pathlib.Path]:
 
 
 def _coerce_datetimes(df: pd.DataFrame) -> pd.DataFrame:
-    """Transforma colunas datetime64[ns] em segundos Unix (float)."""
-    dt_cols = df.select_dtypes(include="datetime").columns
-    if len(dt_cols):
-        df = df.copy()
-        for col in dt_cols:
-            df[col] = df[col].view("int64") / 1_000_000_000  # ns → s
+    """Converte TODAS as colunas de data (datetime64 ou Timestamp em object) para Unix-time."""
+    import pandas as pd
+    import numpy as np
+
+    df = df.copy()
+
+    # 1) datetime64[ns] diretas ------------------------------------------------
+    for col in df.select_dtypes(include="datetime"):
+        df[col] = df[col].view("int64") // 1_000_000_000  # ns → s
+
+    # 2) colunas object contendo Timestamp ------------------------------------
+    for col in df.select_dtypes(include="object"):
+        first = df[col].iloc[0]
+        if isinstance(first, (pd.Timestamp, np.datetime64)):
+            df[col] = pd.to_datetime(df[col]).view("int64") // 1_000_000_000
+
     return df
 
 
